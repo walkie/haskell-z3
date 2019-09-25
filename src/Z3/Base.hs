@@ -421,11 +421,11 @@ import Z3.Base.C
 
 import Control.Applicative ( (<$>), (<*>), (<*), pure )
 import Control.Exception ( Exception, bracket, throw )
-import Control.Monad ( join, when, forM )
+import Control.Monad ( when, forM )
 import Data.Fixed ( Fixed, HasResolution )
 import Data.Foldable ( Foldable (..) )
 import Data.Int
-import Data.IORef ( IORef, newIORef, atomicModifyIORef' )
+import Data.IORef ( IORef, newIORef )
 import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import Data.Maybe ( fromJust )
 import Data.Ratio ( numerator, denominator, (%) )
@@ -630,14 +630,17 @@ mkContext = mkContextWith z3_mk_context_rc
 -- Reference counting of Context
 
 contextIncRef :: Context -> IO ()
-contextIncRef ctx = atomicModifyIORef' (refCount ctx) $ \n ->
-  (n+1, ())
+contextIncRef _ = return ()
+-- contextIncRef ctx =
+--     atomicModifyIORef' (refCount ctx) (\n -> (n+1, ()))
 
 contextDecRef :: Ptr Z3_context -> IORef Word -> IO ()
-contextDecRef ctxPtr count = join $ atomicModifyIORef' count $ \n ->
-  if n > 1
-    then (n-1, return ())
-    else (  0, z3_del_context ctxPtr)
+contextDecRef _ _ = return ()
+-- contextDecRef ctxPtr count = join $
+--     atomicModifyIORef' count $ \n ->
+--       if n > 1
+--         then (n-1, return ())
+--         else (  0, z3_del_context ctxPtr)
 
 ---------------------------------------------------------------------
 -- Parameters
@@ -2883,14 +2886,14 @@ mkC2hRefCount :: (ForeignPtr c -> h)
                    -> Z3IncRefFun c
                    -> Z3DecRefFun c
                    -> Context -> Ptr c -> IO h
-mkC2hRefCount mk incRef decRef ctx xPtr =
+mkC2hRefCount mk incRef _ ctx xPtr =
   withContext ctx $ \ctxPtr -> do
     incRef ctxPtr xPtr
     contextIncRef ctx
-    let xFinalizer = do
-        decRef ctxPtr xPtr
-        contextDecRef ctxPtr (refCount ctx)
-    mk <$> newForeignPtr xPtr xFinalizer
+    -- let xFinalizer = do
+    --     decRef ctxPtr xPtr
+    --     contextDecRef ctxPtr (refCount ctx)
+    mk <$> newForeignPtr xPtr (return ()) -- xFinalizer
 
 dummy_inc_ref :: Z3IncRefFun c
 dummy_inc_ref _ _ = return ()
